@@ -1,7 +1,11 @@
+/*
+Chunk node server code
+SilentFl
+2013
+*/
 package main
 
 import (
-	"../shared"
 	"errors"
 	"flag"
 	"log"
@@ -13,26 +17,37 @@ import (
 	"strconv"
 )
 
+type ReadQuery struct {
+		ChunkHandle int64
+		StartIndex, EndIndex int
+}
+
+type Result struct {
+		Data []byte
+}
+
 var (
-	storagepath = flag.String("/tmp", "D", "path to chunkfile directory")
+	storagepath = flag.String("D", "/tmp", "path to chunkfile directory")
 )
 
-type localReadQuery shared.ReadQuery
-
-func (p *localReadQuery) Get(args *shared.ReadQuery, reply []byte) error {
+func (p *ReadQuery) Get(args ReadQuery, reply *Result) error {
 	log.Println("get ", args.ChunkHandle)
-	chunk, err := os.Open(filepath.Join(*storagepath, strconv.FormatInt(args.ChunkHandle, 10)))
+	pathToChunk := filepath.Join(*storagepath, "chunk00"+strconv.FormatInt(args.ChunkHandle, 10))+".txt"
+	log.Println("path to chunk: ", pathToChunk)
+	chunk, err := os.Open(pathToChunk)
 	if err != nil {
 		return errors.New("Chunk not found")
 	} else {
-		reply = make([]byte, args.EndIndex-args.StartIndex)
-		chunk.ReadAt(reply, int64(args.StartIndex))
+		r := make([]byte, args.EndIndex-args.StartIndex)
+		chunk.ReadAt(r, int64(args.StartIndex))
+		reply.Data = r
+//		log.Println(r)
 		return nil
 	}
 }
 
 func main() {
-	get := new(localReadQuery)
+	get := new(ReadQuery)
 	rpc.Register(get)
 	rpc.HandleHTTP()
 	l, e := net.Listen("tcp", ":4001")
