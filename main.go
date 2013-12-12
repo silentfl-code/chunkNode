@@ -17,6 +17,8 @@ import (
 	"strconv"
 )
 
+type ChunkNode bool
+
 type ReadQuery struct {
 		ChunkHandle int64
 		StartIndex, EndIndex int
@@ -26,11 +28,29 @@ type Result struct {
 		Data []byte
 }
 
+type WriteQuery struct {
+		ChunkHandle int64
+		Data []byte
+}
+
 var (
-	storagepath = flag.String("D", "/tmp", "path to chunkfile directory")
+	storagepath = flag.String("D", "./tmp", "path to chunkfile directory")
+	port = flag.Int("port", 4001, "Port for rpc-connection")
 )
 
-func (p *ReadQuery) Get(args ReadQuery, reply *Result) error {
+func init() {
+	_, err := os.Stat(storagepath)
+	if err != nil {
+		if e, ok := err.(*os.PathError); ok && e.Error == os.ENOENT {
+				err := os.Mkdir(".tmp", FileMode.ModeDir)
+				if err != nil {
+						log.Println("Error create dir for chunks!")
+				}
+		}
+	}
+}
+
+func (p *ChunkNode) Get(args ReadQuery, reply *Result) error {
 	log.Println("get ", args.ChunkHandle)
 	pathToChunk := filepath.Join(*storagepath, "chunk00"+strconv.FormatInt(args.ChunkHandle, 10))+".txt"
 	log.Println("path to chunk: ", pathToChunk)
@@ -46,9 +66,24 @@ func (p *ReadQuery) Get(args ReadQuery, reply *Result) error {
 	}
 }
 
+func  (p *ChunkNode) Write(args WriteQuery, success *bool) error {
+	pathToChunk := filepath.Join(*storagepath, "chunk00"+strconv.FormatInt(args.ChunkHandle, 10))+".txt"
+	file, err := os.Create(pathToChunk)
+	defer file.Close()
+	if err != nil {
+			return errors.New("Error create chunk")
+	} else {
+			_, err := file.Write(args.Data)
+			if err != nil {
+					return errors.New("Error to write chunk")
+			}
+			return nil
+	}
+}
+
 func main() {
-	get := new(ReadQuery)
-	rpc.Register(get)
+	node := new(ChunkNode)
+	rpc.Register(node)
 	rpc.HandleHTTP()
 	l, e := net.Listen("tcp", ":4001")
 	if e != nil {
